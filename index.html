@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Relay</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: linear-gradient(135deg, #e8edff 0%, #ddf0ff 40%, #e5f5ee 100%); min-height: 100vh; }
+
+  .glass-panel {
+    background: rgba(255,255,255,0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: 0 8px 32px rgba(99,102,241,0.08);
+  }
+  .glass-elevated {
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.75);
+    box-shadow: 0 4px 24px rgba(99,102,241,0.10);
+  }
+  .glass-input {
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.7);
+    backdrop-filter: blur(8px);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    width: 100%;
+  }
+  .glass-input:focus {
+    border-color: rgba(99,102,241,0.4);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+  }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.35); }
+
+  .reply-card { transition: all 0.18s ease; cursor: pointer; border: 1.5px solid rgba(255,255,255,0.6); }
+  .reply-card:hover { background: rgba(255,255,255,0.75) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.12); }
+  .reply-card.selected { border-color: #6366f1 !important; background: rgba(238,238,255,0.7) !important; box-shadow: 0 0 0 2px rgba(99,102,241,0.2), 0 6px 20px rgba(99,102,241,0.15); }
+
+  .btn-generate {
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+  }
+  .btn-generate:hover { box-shadow: 0 6px 28px rgba(99,102,241,0.5); transform: translateY(-1px); }
+  .btn-generate:active { transform: scale(0.98); }
+  .btn-generate:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+  .shimmer {
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  .aurora1 { position:fixed; top:-10%; left:-10%; width:55vw; height:55vw; border-radius:50%; background:rgba(165,180,252,0.28); filter:blur(100px); pointer-events:none; z-index:0; }
+  .aurora2 { position:fixed; bottom:-10%; right:-10%; width:60vw; height:60vw; border-radius:50%; background:rgba(167,243,208,0.22); filter:blur(120px); pointer-events:none; z-index:0; }
+  .aurora3 { position:fixed; top:20%; right:15%; width:35vw; height:35vw; border-radius:50%; background:rgba(186,230,253,0.25); filter:blur(90px); pointer-events:none; z-index:0; }
+
+  .chat-bubble-in { animation: bubbleIn 0.22s ease; }
+  @keyframes bubbleIn { from{opacity:0;transform:scale(0.95) translateY(4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+  .session-card { transition: all 0.18s ease; cursor: pointer; }
+  .session-card:hover { background: rgba(255,255,255,0.7) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.12); }
+  .session-card.active-session { border-color: #6366f1 !important; background: rgba(238,238,255,0.65) !important; }
+
+  #page-history { display: none; }
+  #page-workspace { display: flex; }
+</style>
+</head>
+<body class="overflow-hidden text-slate-800">
+
+<!-- Aurora Blobs -->
+<div class="aurora1"></div>
+<div class="aurora2"></div>
+<div class="aurora3"></div>
+
+<!-- Nav -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-14 glass-panel border-b border-white/70">
+  <div class="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-2">
+    <span class="material-symbols-outlined text-indigo-500" style="font-size:20px">auto_awesome</span>
+    Relay
+  </div>
+  <div class="flex gap-6 text-sm" id="navLinks">
+    <a href="#" onclick="showPage('history')" id="nav-history" class="text-slate-500 hover:text-slate-700 transition-colors font-medium">Home</a>
+    <a href="#" onclick="showPage('workspace')" id="nav-workspace" class="text-indigo-600 font-semibold border-b-2 border-indigo-500 pb-0.5">Workspace</a>
+  </div>
+  <button onclick="newSession()" class="text-sm text-slate-700 border border-white/60 bg-white/30 hover:bg-white/55 px-4 py-1.5 rounded-full font-medium transition-all shadow-sm">
+    + New Session
+  </button>
+</nav>
+
+<div id="page-history" class="pt-14 min-h-screen relative z-10">
+
+  <!-- Hero -->
+  <div class="px-8 py-16 max-w-4xl mx-auto text-center">
+    <div class="inline-flex items-center gap-2 bg-white/40 backdrop-blur-md border border-white/60 text-indigo-500 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 shadow-sm">
+      <span class="material-symbols-outlined" style="font-size:14px;font-variation-settings:'FILL' 1">auto_awesome</span>
+      AI-powered cross-language chat
+    </div>
+    <h1 class="text-4xl font-bold text-slate-800 leading-tight mb-4">
+      Say exactly what you mean.<br/>
+      <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-violet-500">In any language.</span>
+    </h1>
+    <p class="text-slate-500 text-base max-w-xl mx-auto leading-relaxed">
+      Relay reads the room — it picks up tone, context, and relationship dynamics so your replies always land the way you intend. No awkward translations. No lost nuance.
+    </p>
+    <button onclick="newSession(); showPage('workspace')"
+      class="mt-8 inline-flex items-center gap-2 btn-generate px-7 py-3 rounded-xl text-white font-semibold text-sm shadow-lg">
+      <span class="material-symbols-outlined" style="font-size:18px">add_comment</span>
+      Start a new conversation
+    </button>
+  </div>
+
+  <!-- Sessions -->
+  <div class="px-8 pb-12 max-w-4xl mx-auto">
+    <div id="recentHeader" class="flex items-center justify-between mb-4 hidden">
+      <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Recent Sessions</h2>
+    </div>
+    <div id="historyList" class="space-y-3"></div>
+  </div>
+
+</div>
+
+<!-- Workspace Page -->
+<main id="page-workspace" class="pt-16 px-5 pb-5 h-screen gap-5 max-w-7xl mx-auto relative z-10">
+
+  <!-- LEFT: Chat History -->
+  <section class="glass-panel rounded-2xl flex flex-col w-[36%] h-full overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-white/60 flex items-center justify-between bg-white/20 flex-shrink-0">
+      <div class="flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-slate-400 text-sm" style="font-size:16px">edit</span>
+        <input id="sessionName" type="text" value="New Session"
+          class="bg-transparent border-none text-base font-semibold text-slate-800 focus:ring-0 p-0 w-36 outline-none cursor-pointer hover:bg-white/30 rounded px-1 transition-colors"
+          oninput="saveSession()" />
+      </div>
+      <span class="text-xs text-slate-400 font-medium" id="msgCount">0 messages</span>
+    </div>
+
+    <!-- Chat bubbles -->
+    <div id="chatHistory" class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <!-- Empty state -->
+      <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center px-6 text-slate-400">
+        <span class="material-symbols-outlined text-4xl text-slate-300 mb-3">chat_bubble_outline</span>
+        <p class="text-sm font-medium">No messages yet</p>
+        <p class="text-xs mt-1 text-slate-300">Paste a friend's message and start chatting</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: Workspace -->
+  <section class="flex-1 h-full overflow-y-auto space-y-4 pr-1 pb-2">
+
+    <!-- 1. Tone Box -->
+    <div class="glass-elevated rounded-2xl p-5 space-y-3">
+      <div class="flex justify-between items-center">
+        <label class="text-sm font-semibold text-slate-700">Conversation Tone</label>
+        <button onclick="adjustTone()" id="btnAdjustTone"
+          class="flex items-center gap-1.5 text-xs text-slate-600 bg-white/30 hover:bg-white/55 px-3 py-1.5 rounded-full border border-white/60 shadow-sm transition-all font-medium">
+          <span class="material-symbols-outlined" style="font-size:14px" id="adjustIcon">sync</span>
+          Adjust by Chat History
+        </button>
+      </div>
+      <textarea id="toneInput" rows="3"
+        class="glass-input rounded-xl px-4 py-3 text-sm resize-none text-slate-800 placeholder-slate-400"
+        placeholder="Describe the tone… e.g. Casual, warm, slightly playful, concise"></textarea>
+    </div>
+
+    <!-- 2. Friend Input -->
+    <div class="glass-elevated rounded-2xl p-5 space-y-2">
+      <label class="text-sm font-semibold text-slate-700 block">Paste friend's message</label>
+      <textarea id="friendInput" rows="3"
+        class="glass-input rounded-xl px-4 py-3 text-sm resize-none text-slate-800 placeholder-slate-400"
+        placeholder="Paste the message you want to reply to…"
+        oninput="handleFriendInput(this.value); state.pendingDraft = this.value; saveSession();"></textarea>
+      <div class="flex justify-between items-center pt-1">
+        <div class="flex items-center gap-1.5 text-xs text-slate-400">
+          Translate to:
+          <input id="translateLang" type="text" value="English"
+            class="bg-white/40 border border-white/60 rounded-lg px-2 py-1 text-xs text-slate-700 w-24 outline-none focus:border-indigo-300 transition-colors" />
+        </div>
+        <button onclick="submitFriendMessage()"
+          class="flex items-center gap-1.5 text-xs font-semibold text-white bg-slate-600/70 hover:bg-slate-700/80 active:scale-95 px-4 py-2 rounded-lg transition-all shadow-sm backdrop-blur-sm">
+          <span class="material-symbols-outlined" style="font-size:14px">add_comment</span>
+          Add to Chat
+        </button>
+      </div>
+      <!-- Friend message translation -->
+      <div id="friendTranslation" class="hidden fade-in mt-1 rounded-xl bg-white/30 border border-white/50 px-4 py-3 space-y-1">
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+          <span class="material-symbols-outlined" style="font-size:13px">translate</span>
+          <span id="friendTranslationLang">English</span> translation
+        </div>
+        <p id="friendTranslationText" class="text-sm text-slate-600 leading-relaxed"></p>
+      </div>
+    </div>
+
+    <!-- 3. My Draft -->
+    <div class="glass-elevated rounded-2xl p-5 space-y-2">
+      <label class="text-sm font-semibold text-slate-700 block">
+        Your draft / intent
+        <span class="text-slate-400 text-xs font-normal ml-1">(optional)</span>
+      </label>
+      <textarea id="myDraft" rows="2"
+        class="glass-input rounded-xl px-4 py-3 text-sm resize-none text-slate-800 placeholder-slate-400"
+        placeholder="Leave empty to generate freely, or type your intent…"></textarea>
+    </div>
+
+    <!-- 4. Generate Button -->
+    <button onclick="generateReplies()" id="btnGenerate"
+      class="btn-generate w-full py-3.5 rounded-xl text-white font-semibold text-base flex items-center justify-center gap-2 overflow-hidden relative group">
+      <div class="shimmer absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <span class="material-symbols-outlined relative z-10" style="font-size:20px;font-variation-settings:'FILL' 1" id="generateIcon">auto_awesome</span>
+      <span class="relative z-10" id="generateLabel">Generate 3 Replies</span>
+    </button>
+
+    <!-- 5. Reply Cards -->
+    <div id="replyCards" class="grid grid-cols-3 gap-3 hidden">
+      <!-- Filled by JS -->
+    </div>
+
+    <!-- 6. Preview & Send -->
+    <div id="previewSection" class="glass-elevated rounded-2xl p-5 space-y-3 hidden fade-in">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-semibold text-indigo-700">Selected Preview</label>
+        <div class="flex-1 h-px bg-gradient-to-r from-indigo-200/60 to-transparent"></div>
+      </div>
+      <textarea id="previewText" rows="4"
+        class="glass-input rounded-xl px-4 py-3 text-sm resize-none text-slate-800 font-medium"></textarea>
+      <div class="flex justify-end">
+        <button onclick="confirmAndSend()"
+          class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white px-6 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-500/25">
+          Confirm & Send
+          <span class="material-symbols-outlined" style="font-size:16px">send</span>
+        </button>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<script>
+// =============================================
+// 🔌 AI CONFIG — ISI BAGIAN INI
+// =============================================
+
+const AI_METHOD = 2; // 1 = Direct Gemini | 2 = n8n Proxy
+
+// -- Method 1: Direct Gemini API --
+const GEMINI_API_KEY = "ISI_API_KEY_KAMU";
+const GEMINI_MODEL   = "gemini-2.0-flash";
+
+// -- Method 2: n8n Webhook + JWT Auth --
+const N8N_WEBHOOK_URL = "https://n8n-h0dsuwveifgm.rendang.sumopod.my.id/webhook/relay-ai-submit";
+const N8N_JWT_SECRET  = "kmzwa**8awaa"; // ⚠️ jangan push ke public repo
+
+// =============================================
+
+// ── JWT Generator (HS256, Web Crypto API) ──
+async function generateJWT(secret) {
+  const b64url = str => btoa(str).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+  const header  = b64url(JSON.stringify({ alg:"HS256", typ:"JWT" }));
+  const payload = b64url(JSON.stringify({ iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000) + 3600 }));
+  const data    = `${header}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret),
+    { name:"HMAC", hash:"SHA-256" }, false, ["sign"]
+  );
+  const sig    = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+  return `${data}.${sigB64}`;
+}
+
+async function callAI(systemPrompt, userMessage) {
+  if (AI_METHOD === 1) {
+    // ── Direct Gemini ──────────────────────
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userMessage }] }]
+        })
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data?.error?.message || "Gemini error " + res.status;
+      throw new Error(msg);
+    }
+    if (!data.candidates?.length) throw new Error("Gemini: no candidates returned");
+    return data.candidates[0].content.parts[0].text;
+
+  } else {
+    // ── n8n Proxy + JWT ────────────────────
+    const token = await generateJWT(N8N_JWT_SECRET);
+    const res = await fetch(N8N_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ system: systemPrompt, message: userMessage })
+    });
+    if (!res.ok) throw new Error("n8n error " + res.status);
+    const data = await res.json();
+    return data.output; // sesuaikan kalau format response n8n-mu beda
+  }
+}
+
+// ── Retry wrapper — unlimited retry on rate limit ──
+async function callAIWithRetry(systemPrompt, userMessage, onRetry) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await callAI(systemPrompt, userMessage);
+    } catch(e) {
+      const isRateLimit = /503|429|overload|high demand|try again|unavailable|quota/i.test(e.message);
+      if (!isRateLimit) throw e; // error lain langsung bubble up
+      attempt++;
+      const delay = Math.min(2000 * Math.pow(1.5, attempt - 1), 20000); // max 20 detik
+      console.warn(`Rate limited (attempt ${attempt}), retry in ${delay}ms…`);
+      if (onRetry) onRetry(attempt, Math.round(delay / 1000));
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+// ── Storage Keys ───────────────────────────
+const IDX_KEY    = "glacier_index";   // [{id, name, lastMsg, updatedAt}]
+const ACTIVE_KEY = "glacier_active";  // active session id
+const sessKey    = id => `glacier_sess_${id}`;
+const genId      = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+let state = {
+  id: "",
+  sessionName: "New Session",
+  tone: "",
+  messages: [],
+  selectedReply: "",
+  pendingDraft: "",
+  pendingFriendMsg: null,
+};
+
+// ── Index helpers ───────────────────────────
+function loadIndex() {
+  try { return JSON.parse(localStorage.getItem(IDX_KEY)) || []; } catch { return []; }
+}
+function saveIndex(index) {
+  localStorage.setItem(IDX_KEY, JSON.stringify(index));
+}
+function updateIndex() {
+  let index = loadIndex();
+  const lastMsg = state.messages.length > 0 ? state.messages[state.messages.length - 1].text : "";
+  const entry = { id: state.id, name: state.sessionName, lastMsg: lastMsg.slice(0, 80), updatedAt: Date.now() };
+  const i = index.findIndex(s => s.id === state.id);
+  if (i >= 0) index[i] = entry; else index.unshift(entry);
+  // Sort by updatedAt desc
+  index.sort((a, b) => b.updatedAt - a.updatedAt);
+  saveIndex(index);
+}
+
+// ── Init ───────────────────────────────────
+function init() {
+  let activeId = localStorage.getItem(ACTIVE_KEY);
+  const index = loadIndex();
+
+  // Kalau ada active session, load. Kalau tidak, buat baru atau load pertama di index.
+  if (activeId && localStorage.getItem(sessKey(activeId))) {
+    loadSessionById(activeId);
+  } else if (index.length > 0) {
+    loadSessionById(index[0].id);
+  } else {
+    createNewSession();
+  }
+  showPage("history");
+}
+
+function loadSessionById(id) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(sessKey(id)));
+    if (saved) {
+      state = saved;
+      if (!Array.isArray(state.messages)) state.messages = [];
+      if (!state.tone) state.tone = "";
+      if (!state.id) state.id = id;
+    }
+  } catch(e) {}
+
+  localStorage.setItem(ACTIVE_KEY, state.id);
+  syncWorkspaceUI();
+}
+
+function syncWorkspaceUI() {
+  document.getElementById("sessionName").value = state.sessionName || "New Session";
+  document.getElementById("toneInput").value = state.tone || "";
+
+  const ta = document.getElementById("friendInput");
+  ta.readOnly = false;
+  ta.classList.remove("opacity-60");
+  ta.value = state.pendingDraft || "";
+
+  // Reset workspace panels
+  document.getElementById("replyCards").classList.add("hidden");
+  document.getElementById("previewSection").classList.add("hidden");
+  document.getElementById("friendTranslation").classList.add("hidden");
+  document.getElementById("friendTranslationText").textContent = "";
+  document.querySelectorAll(".reply-card").forEach(c => c.classList.remove("selected"));
+  document.getElementById("myDraft").value = "";
+
+  if (state.messages.length > 0 && state.messages[state.messages.length - 1].role === "friend") {
+    state.pendingFriendMsg = state.messages[state.messages.length - 1].text;
+  }
+
+  renderHistory();
+}
+
+// ── Save ────────────────────────────────────
+function saveSession() {
+  state.sessionName = document.getElementById("sessionName").value;
+  state.tone = document.getElementById("toneInput").value;
+  localStorage.setItem(sessKey(state.id), JSON.stringify(state));
+  updateIndex();
+  updateMsgCount();
+}
+
+// ── New Session ─────────────────────────────
+function createNewSession() {
+  state = {
+    id: genId(),
+    sessionName: "New Session",
+    tone: "",
+    messages: [],
+    selectedReply: "",
+    pendingDraft: "",
+    pendingFriendMsg: null,
+  };
+  localStorage.setItem(ACTIVE_KEY, state.id);
+  localStorage.setItem(sessKey(state.id), JSON.stringify(state));
+}
+
+function newSession() {
+  // Save current dulu
+  if (state.id) saveSession();
+  createNewSession();
+  syncWorkspaceUI();
+  showPage("workspace");
+}
+
+// ── Delete Session ──────────────────────────
+function deleteSession(id, e) {
+  e.stopPropagation();
+  if (!confirm("Hapus session ini?")) return;
+
+  localStorage.removeItem(sessKey(id));
+  let index = loadIndex();
+  index = index.filter(s => s.id !== id);
+  saveIndex(index);
+
+  // Kalau yang dihapus adalah active session, switch ke lain
+  if (state.id === id) {
+    if (index.length > 0) {
+      loadSessionById(index[0].id);
+      showPage("workspace");
+    } else {
+      createNewSession();
+      syncWorkspaceUI();
+      showPage("workspace");
+    }
+  }
+  renderHistoryPage();
+}
+
+// ── Page Navigation ─────────────────────────
+function showPage(name) {
+  document.getElementById("page-history").style.display   = name === "history"   ? "block" : "none";
+  document.getElementById("page-workspace").style.display = name === "workspace" ? "flex"  : "none";
+
+  const navH = document.getElementById("nav-history");
+  const navW = document.getElementById("nav-workspace");
+  navH.className = name === "history"
+    ? "text-indigo-600 font-semibold border-b-2 border-indigo-500 pb-0.5"
+    : "text-slate-500 hover:text-slate-700 transition-colors font-medium";
+  navW.className = name === "workspace"
+    ? "text-indigo-600 font-semibold border-b-2 border-indigo-500 pb-0.5"
+    : "text-slate-500 hover:text-slate-700 transition-colors font-medium";
+
+  if (name === "history") renderHistoryPage();
+  return false;
+}
+
+// ── Render History Page ─────────────────────
+function renderHistoryPage() {
+  const list = document.getElementById("historyList");
+  const header = document.getElementById("recentHeader");
+  const index = loadIndex();
+
+  list.innerHTML = "";
+
+  if (index.length === 0) {
+    header.classList.add("hidden");
+    return;
+  }
+
+  header.classList.remove("hidden");
+
+  index.forEach(sess => {
+    const isActive = sess.id === state.id;
+    const date = new Date(sess.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+    const card = document.createElement("div");
+    card.className = `session-card glass-panel rounded-2xl px-5 py-4 flex items-center justify-between gap-4 ${isActive ? "active-session" : ""}`;
+    card.innerHTML = `
+      <div class="flex-1 min-w-0 cursor-pointer" onclick="openSession('${sess.id}')">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="font-semibold text-slate-800 text-sm truncate">${escHtml(sess.name || "Untitled")}</span>
+          ${isActive ? '<span class="text-[10px] bg-indigo-100 text-indigo-600 font-semibold px-2 py-0.5 rounded-full">Active</span>' : ""}
+        </div>
+        <p class="text-xs text-slate-400 truncate">${escHtml(sess.lastMsg || "No messages yet")}</p>
+        <p class="text-[10px] text-slate-300 mt-1">${date}</p>
+      </div>
+      <button onclick="deleteSession('${sess.id}', event)"
+        class="flex-shrink-0 p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50/50 transition-all"
+        title="Delete session">
+        <span class="material-symbols-outlined" style="font-size:18px">delete</span>
+      </button>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function openSession(id) {
+  if (state.id) saveSession();
+  loadSessionById(id);
+  showPage("workspace");
+}
+
+// ── Auto session name ───────────────────────
+function handleFriendInput(val) {
+  if (state.messages.length === 0 && val.trim()) {
+    const firstWord = val.trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, "");
+    if (firstWord && document.getElementById("sessionName").value === "New Session") {
+      document.getElementById("sessionName").value = firstWord;
+      state.sessionName = firstWord;
+    }
+  }
+}
+
+// ── Get last N messages for AI context ─────
+// exclude = teks yang sudah ada di "latest message" biar ga duplikat di history
+function getRecentContext(n = 5, excludeText = "") {
+  let msgs = state.messages;
+  // kalau pesan terakhir di history sama dengan yang di textarea, keluarkan dari history
+  if (excludeText && msgs.length > 0) {
+    const last = msgs[msgs.length - 1];
+    if (last.role === "friend" && last.text.trim() === excludeText.trim()) {
+      msgs = msgs.slice(0, -1);
+    }
+  }
+  return msgs.slice(-n).map(m => ({
+    role: m.role === "friend" ? "user" : "assistant",
+    content: m.text
+  }));
+}
+
+// ── Adjust Tone ────────────────────────────
+async function adjustTone() {
+  if (state.messages.length === 0) {
+    alert("Belum ada chat history untuk dianalisis.");
+    return;
+  }
+
+  const btn = document.getElementById("btnAdjustTone");
+  const icon = document.getElementById("adjustIcon");
+  btn.disabled = true;
+  icon.classList.add("spin");
+
+  try {
+    const history = state.messages.map(m =>
+      `${m.role === "friend" ? "Friend" : "Me"}: ${m.text}`
+    ).join("\n");
+
+    const systemPrompt = `You are a tone analyzer. Based on the conversation history provided, 
+write a SHORT tone descriptor (1-2 sentences max) describing the communication style, 
+relationship warmth, and language register. Be concise and descriptive. 
+Reply with ONLY the tone description, no preamble.`;
+
+    const userMsg = `Analyze the tone of this conversation:\n\n${history}`;
+
+    const result = await callAIWithRetry(systemPrompt, userMsg, (attempt, secs) => {
+      btn.title = `Rate limited, retry #${attempt} in ${secs}s…`;
+    });
+    document.getElementById("toneInput").value = result.trim();
+    state.tone = result.trim();
+    saveSession();
+  } catch(e) {
+    alert("Gagal adjust tone: " + e.message);
+  } finally {
+    btn.disabled = false;
+    icon.classList.remove("spin");
+  }
+}
+
+// ── Generate Replies ────────────────────────
+async function generateReplies() {
+  // Ambil friend message dari state — bukan dari textarea
+  const lastFriendMsg = [...state.messages].reverse().find(m => m.role === "friend");
+  if (!lastFriendMsg) {
+    alert("Belum ada message dari friend di history.");
+    return;
+  }
+  const friendMsg = lastFriendMsg.text;
+
+  const btnGenerate = document.getElementById("btnGenerate");
+  const genIcon = document.getElementById("generateIcon");
+  const genLabel = document.getElementById("generateLabel");
+
+  btnGenerate.disabled = true;
+  genIcon.classList.add("spin");
+  genLabel.textContent = "Generating…";
+
+  // Hide old cards
+  document.getElementById("replyCards").classList.add("hidden");
+  document.getElementById("previewSection").classList.add("hidden");
+
+  try {
+    const tone = document.getElementById("toneInput").value.trim() || "neutral and friendly";
+    const myDraft = document.getElementById("myDraft").value.trim();
+    const recentMsgs = getRecentContext(5, friendMsg); // exclude duplikat
+
+    const historyText = recentMsgs.length > 0
+      ? recentMsgs.map(m => `${m.role === "user" ? "Friend" : "Me"}: ${m.content}`).join("\n")
+      : "(no previous messages)";
+
+    const lang = document.getElementById("translateLang").value.trim() || "English";
+
+    const systemPrompt = `You are a multilingual reply assistant. 
+Your job is to generate 3 reply options in the SAME LANGUAGE as the friend's message.
+Tone to follow: ${tone}
+Always detect and match the friend's language.
+Also provide a ${lang} translation of each reply.
+
+IMPORTANT — Reply order rules:
+1. First reply: label it "Original Style". This must preserve the user's own voice and intent as closely as possible — minimal paraphrase, just translate/adapt to the friend's language if needed. If no draft is provided, write something natural and direct without imposing any tone.
+2. Second reply: a variation that fits the conversation tone described above.
+3. Third reply: another variation with a clearly different angle (e.g. warmer, more concise, more expressive — your choice based on context).
+
+Return ONLY valid JSON in this exact format:
+{"replies":[{"label":"Original Style","text":"...","translation":"..."},{"label":"...","text":"...","translation":"..."},{"label":"...","text":"...","translation":"..."}]}
+No markdown, no extra text outside the JSON.`;
+
+    const userMsg = `Previous chat history:\n${historyText}\n\nFriend's latest message to reply to: "${friendMsg}"${myDraft ? `\n\nMy draft/intent: "${myDraft}"` : ""}`;
+
+    const result = await callAIWithRetry(systemPrompt, userMsg, (attempt, secs) => {
+      genLabel.textContent = `Rate limited, retry #${attempt} in ${secs}s…`;
+    });
+
+    // Parse JSON
+    let parsed;
+    try {
+      const clean = result.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      throw new Error("AI response bukan JSON valid. Response: " + result.substring(0, 100));
+    }
+
+    renderReplyCards(parsed.replies);
+
+  } catch(e) {
+    alert("Gagal generate replies: " + e.message);
+  } finally {
+    btnGenerate.disabled = false;
+    genIcon.classList.remove("spin");
+    genLabel.textContent = "Generate 3 Replies";
+  }
+}
+
+// ── Render Reply Cards ──────────────────────
+const LABEL_COLORS = [
+  "text-indigo-600",
+  "text-emerald-600",
+  "text-amber-600",
+  "text-rose-500",
+  "text-sky-600",
+];
+
+function renderReplyCards(replies) {
+  const container = document.getElementById("replyCards");
+  container.innerHTML = "";
+  container.classList.remove("hidden");
+  container.classList.add("fade-in");
+
+  replies.forEach((reply, i) => {
+    const color = LABEL_COLORS[i % LABEL_COLORS.length];
+    const card = document.createElement("div");
+    card.className = `reply-card glass-panel rounded-xl p-4 bg-white/40`;
+    card.dataset.text = reply.text;
+    card.innerHTML = `
+      <div class="text-xs font-bold uppercase tracking-wider ${color} mb-2">${reply.label}</div>
+      <p class="text-sm text-slate-700 leading-relaxed">${reply.text}</p>
+      ${reply.translation ? `
+        <hr class="my-2.5 border-white/50" />
+        <p class="text-xs text-slate-400 leading-relaxed italic">${reply.translation}</p>
+      ` : ""}
+    `;
+    card.addEventListener("click", () => selectReply(card, reply.text));
+    container.appendChild(card);
+  });
+}
+
+function selectReply(cardEl, text) {
+  // Remove selected from all cards
+  document.querySelectorAll(".reply-card").forEach(c => c.classList.remove("selected"));
+  cardEl.classList.add("selected");
+
+  // Show preview
+  const preview = document.getElementById("previewSection");
+  preview.classList.remove("hidden");
+  preview.classList.add("fade-in");
+  document.getElementById("previewText").value = text;
+  state.selectedReply = text;
+
+  // Scroll into view
+  preview.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ── Submit Friend Message ───────────────────
+function submitFriendMessage() {
+  const friendMsg = document.getElementById("friendInput").value.trim();
+  if (!friendMsg) { alert("Paste dulu message dari friend-nya."); return; }
+
+  const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  state.messages.push({ role: "friend", text: friendMsg, ts });
+  state.pendingFriendMsg = friendMsg;
+  state.pendingDraft = "";
+
+  saveSession();
+  renderHistory();
+  translateFriendMessage(friendMsg);
+}
+
+// ── Translate Friend Message ────────────────
+async function translateFriendMessage(text) {
+  const lang = document.getElementById("translateLang").value.trim() || "English";
+  const box = document.getElementById("friendTranslation");
+  const out = document.getElementById("friendTranslationText");
+  const langLabel = document.getElementById("friendTranslationLang");
+
+  langLabel.textContent = lang;
+  out.textContent = "Translating…";
+  box.classList.remove("hidden");
+
+  try {
+    const result = await callAIWithRetry(
+      `Translate the following message to ${lang}. Reply with ONLY the translation, no preamble.`,
+      text
+    );
+    out.textContent = result.trim();
+  } catch(e) {
+    out.textContent = "Translation failed: " + e.message;
+  }
+}
+
+// ── Confirm & Send ──────────────────────────
+function confirmAndSend() {
+  const myReply = document.getElementById("previewText").value.trim();
+  if (!myReply) return;
+
+  const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // Kalau friend message belum di-submit manual, auto-submit
+  const friendMsg = document.getElementById("friendInput").value.trim();
+  if (friendMsg && !state.pendingFriendMsg) {
+    state.messages.push({ role: "friend", text: friendMsg, ts });
+  }
+
+  state.messages.push({ role: "me", text: myReply, ts });
+  state.pendingFriendMsg = null;
+  state.pendingDraft = "";
+
+  saveSession();
+  renderHistory();
+
+  // Clear workspace
+  const ta = document.getElementById("friendInput");
+  ta.value = "";
+  document.getElementById("myDraft").value = "";
+  document.getElementById("replyCards").classList.add("hidden");
+  document.getElementById("previewSection").classList.add("hidden");
+  document.getElementById("friendTranslation").classList.add("hidden");
+  document.getElementById("friendTranslationText").textContent = "";
+  document.querySelectorAll(".reply-card").forEach(c => c.classList.remove("selected"));
+  state.selectedReply = "";
+}
+
+// ── Render Chat History ─────────────────────
+function renderHistory() {
+  const container = document.getElementById("chatHistory");
+  const emptyState = document.getElementById("emptyState");
+
+  if (state.messages.length === 0) {
+    container.innerHTML = "";
+    container.appendChild(emptyState || createEmptyState());
+    emptyState && (emptyState.style.display = "flex");
+    updateMsgCount();
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = "none";
+
+  // Rebuild bubbles (keep it simple, re-render all)
+  container.innerHTML = "";
+
+  state.messages.forEach(msg => {
+    const wrapper = document.createElement("div");
+    wrapper.className = `flex flex-col ${msg.role === "me" ? "items-end" : "items-start"} chat-bubble-in`;
+
+    if (msg.role === "friend") {
+      wrapper.innerHTML = `
+        <div class="text-xs text-slate-500 mb-1 ml-1 font-medium">${state.sessionName}</div>
+        <div class="max-w-[85%] bg-white/55 backdrop-blur-md border border-white/70 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-800 leading-relaxed shadow-sm">${escHtml(msg.text)}</div>
+        <div class="text-[10px] text-slate-400 mt-1 ml-1">${msg.ts || ""}</div>
+      `;
+    } else {
+      wrapper.innerHTML = `
+        <div class="max-w-[85%] bg-indigo-400/25 backdrop-blur-md border border-indigo-200/50 rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-slate-800 leading-relaxed shadow-sm">${escHtml(msg.text)}</div>
+        <div class="text-[10px] text-slate-400 mt-1 mr-1">${msg.ts || ""}</div>
+      `;
+    }
+    container.appendChild(wrapper);
+  });
+
+  // Auto-scroll to bottom
+  requestAnimationFrame(() => {
+    container.scrollTop = container.scrollHeight;
+  });
+  updateMsgCount();
+}
+
+function updateMsgCount() {
+  const el = document.getElementById("msgCount");
+  if (el) el.textContent = `${state.messages.length} message${state.messages.length !== 1 ? "s" : ""}`;
+}
+
+function createEmptyState() {
+  const d = document.createElement("div");
+  d.id = "emptyState";
+  d.className = "h-full flex flex-col items-center justify-center text-center px-6 text-slate-400";
+  d.innerHTML = `
+    <span class="material-symbols-outlined text-4xl text-slate-300 mb-3">chat_bubble_outline</span>
+    <p class="text-sm font-medium">No messages yet</p>
+    <p class="text-xs mt-1 text-slate-300">Paste a friend's message and start chatting</p>
+  `;
+  return d;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// Also save tone on change
+document.addEventListener("DOMContentLoaded", () => {
+  init();
+  document.getElementById("toneInput").addEventListener("input", saveSession);
+  document.getElementById("sessionName").addEventListener("input", saveSession);
+});
+</script>
+</body>
+</html>
